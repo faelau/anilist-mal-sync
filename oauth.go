@@ -167,7 +167,11 @@ func startServer(ctx context.Context, oauth *OAuth, port string, done chan<- boo
 		if token != nil {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><body>Authorization successful. You can close this window.<br><script>window.close();</script></body></html>`))
+
+			_, e := w.Write([]byte(`<html><body>Authorization successful. You can close this window.<br><script>window.close();</script></body></html>`))
+			if e != nil {
+				log.Fatalf("Error writing response: %v", e)
+			}
 
 			done <- true
 
