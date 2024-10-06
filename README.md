@@ -103,7 +103,7 @@ Just stop it and wait for a while and run again.
 
 ## TODO
 
-- [ ] Add documentation
-- [ ] Sync favorites
+- [x] Add documentation
+- [x] ~Sync favorites~ (not possible, because it is not available in the API)
 - [ ] Sync manga
 - [ ] Sync MAL to AniList
