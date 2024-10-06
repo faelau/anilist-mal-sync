@@ -73,13 +73,27 @@ Program supports the following command-line options:
 - `-c` - Path to the config file. Default is `config.yaml`.
 - `-f` - Force sync (sync all entries, not just the ones that have changed). Default is false.
 - `-d` - Dry run (do not make any changes to MyAnimeList). Default is false.
+- `-h` - Print help message.
 
 ### How to run
+
+Requirements:
+
+- Go 1.22 or later
+
+Build and run the program from source:
 
 1. Clone the repository: `git clone https://github.com/bigspawn/anilist-mal-sync.git`
 2. Change directory: `cd anilist-mal-sync`
 3. Configure the program: `cp config.example.yaml config.yaml` and fill in the necessary fields
 4. Run the program: `go run .`
+
+Or install the program:
+
+```bash
+go install github.com/bigspawn/anilist-mal-sync@latest
+anilist-mal-sync
+```
 
 ## Disclaimer
 
