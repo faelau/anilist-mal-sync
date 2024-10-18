@@ -8,6 +8,8 @@ import (
 	"syscall"
 )
 
+const debug = false
+
 func main() {
 	configFile := flag.String("c", "config.yaml", "path to config file")
 	forceSync := flag.Bool("f", false, "force sync all animes")

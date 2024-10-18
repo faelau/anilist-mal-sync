@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/nstratos/go-myanimelist/mal"
 	"github.com/rl404/verniy"
@@ -67,8 +68,9 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*A
 		forceSync: forceSync,
 		dryRun:    dryRun,
 		stats:     &Statistics{},
-		ignore: map[string]struct{}{
-			"Scott Pilgrim Takes Off": {}, // this anime is not in MAL
+		ignore: map[string]struct{}{ // in lowercase
+			"scott pilgrim takes off":       {}, // this anime is not in MAL
+			"bocchi the rock! recap part 2": {}, // this anime is not in MAL
 		},
 	}, nil
 }
@@ -145,7 +147,7 @@ func (a *App) processAnimeList(ctx context.Context, srcAnimeList []verniy.MediaL
 				continue
 			}
 
-			if _, ok := a.ignore[src.GetTitle()]; ok {
+			if _, ok := a.ignore[strings.ToLower(src.GetTitle())]; ok {
 				log.Printf("Ignoring anime: %s", src.GetTitle())
 				continue
 			}
@@ -163,7 +165,7 @@ func (a *App) processSingleAnime(ctx context.Context, src Anime, tgtAnimeMap map
 			return
 		}
 
-		if src.IsSameProgress(tgt) && src.IsSameDates(tgt) {
+		if src.IsSameProgress(tgt) /* && src.IsSameDates(tgt) */ {
 			a.stats.SkippedCount++
 			return
 		}

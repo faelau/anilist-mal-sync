@@ -45,18 +45,18 @@ func (s Status) GetMalStatus() (mal.AnimeStatus, error) {
 }
 
 type Anime struct {
-	EpisodeNumber int
-	IDAnilist     int
-	IDMal         int
-	Progress      int
-	Score         float64
-	SeasonYear    int
-	Status        Status
-	TitleEN       string
-	TitleJP       string
-	TitleRomaji   string
-	StartedAt     *time.Time
-	FinishedAt    *time.Time
+	NumEpisodes int
+	IDAnilist   int
+	IDMal       int
+	Progress    int
+	Score       float64
+	SeasonYear  int
+	Status      Status
+	TitleEN     string
+	TitleJP     string
+	TitleRomaji string
+	StartedAt   *time.Time
+	FinishedAt  *time.Time
 }
 
 func (a Anime) GetTitle() string {
@@ -94,9 +94,6 @@ func (a Anime) IsSameAnime(b Anime) bool {
 		if len(s1) < len(s2) {
 			s1, s2 = s2, s1
 		}
-
-		log.Println("s1: ", s1)
-		log.Println("s2: ", s2)
 
 		c := 0
 		for i, r := range s1 {
@@ -137,7 +134,48 @@ func (a Anime) IsSameAnime(b Anime) bool {
 }
 
 func (a Anime) IsSameProgress(b Anime) bool {
-	return a.Status == b.Status && a.Progress == b.Progress && a.Score == b.Score
+	if a.Status != b.Status {
+		if debug {
+			log.Printf("Status: %s != %s", a.Status, b.Status)
+		}
+		return false
+	}
+	if a.Score != b.Score {
+		if debug {
+			log.Printf("Score: %f != %f", a.Score, b.Score)
+		}
+		return false
+	}
+	progress := a.Progress == b.Progress
+	if a.NumEpisodes == b.NumEpisodes {
+		if debug {
+			log.Printf("Equal number of episodes: %d == %d", a.NumEpisodes, b.NumEpisodes)
+			log.Printf("Progress: %t", progress)
+		}
+		return progress
+	}
+	if a.NumEpisodes == 0 || b.NumEpisodes == 0 {
+		if debug {
+			log.Printf("One of the anime has 0 episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
+			log.Printf("Progress: %t", progress)
+		}
+		return progress
+	}
+	if progress && (a.NumEpisodes-b.NumEpisodes != 0) {
+		if debug {
+			log.Printf("Both anime have 0 progress but different number of episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
+		}
+		return true
+	}
+
+	aa := (a.NumEpisodes - a.Progress)
+	bb := (b.NumEpisodes - b.Progress)
+	if debug {
+		log.Printf("Number of episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
+		log.Printf("Progress: %d, %d", a.Progress, b.Progress)
+		log.Printf("Progress: %d == %d", aa, bb)
+	}
+	return aa == bb
 }
 
 func (a Anime) IsSameDates(b Anime) bool {
@@ -162,18 +200,21 @@ func (a Anime) DiffString(b Anime) string {
 	if a.Status != b.Status {
 		sb.WriteString(fmt.Sprintf("Status: %s -> %s, ", a.Status, b.Status))
 	}
-	if a.Progress != b.Progress {
-		sb.WriteString(fmt.Sprintf("Progress: %d -> %d, ", a.Progress, b.Progress))
-	}
 	if a.Score != b.Score {
 		sb.WriteString(fmt.Sprintf("Score: %f -> %f, ", a.Score, b.Score))
 	}
-	if a.StartedAt != b.StartedAt {
-		sb.WriteString(fmt.Sprintf("StartedAt: %s -> %s, ", a.StartedAt, b.StartedAt))
+	if a.Progress != b.Progress {
+		sb.WriteString(fmt.Sprintf("Progress: %d -> %d, ", a.Progress, b.Progress))
 	}
-	if a.FinishedAt != b.FinishedAt {
-		sb.WriteString(fmt.Sprintf("FinishedAt: %s -> %s, ", a.FinishedAt, b.FinishedAt))
+	if a.NumEpisodes != b.NumEpisodes {
+		sb.WriteString(fmt.Sprintf("NumEpisodes: %d -> %d, ", a.NumEpisodes, b.NumEpisodes))
 	}
+	// if a.StartedAt != b.StartedAt {
+	// 	sb.WriteString(fmt.Sprintf("StartedAt: %s -> %s, ", a.StartedAt, b.StartedAt))
+	// }
+	// if a.FinishedAt != b.FinishedAt {
+	// 	sb.WriteString(fmt.Sprintf("FinishedAt: %s -> %s, ", a.FinishedAt, b.FinishedAt))
+	// }
 	sb.WriteString("}")
 	return sb.String()
 }
@@ -188,7 +229,7 @@ func (a Anime) String() string {
 	sb.WriteString(fmt.Sprintf("MediaListStatus: %s, ", a.Status))
 	sb.WriteString(fmt.Sprintf("Score: %f, ", a.Score))
 	sb.WriteString(fmt.Sprintf("Progress: %d, ", a.Progress))
-	sb.WriteString(fmt.Sprintf("EpisodeNumber: %d, ", a.EpisodeNumber))
+	sb.WriteString(fmt.Sprintf("EpisodeNumber: %d, ", a.NumEpisodes))
 	sb.WriteString(fmt.Sprintf("SeasonYear: %d, ", a.SeasonYear))
 	sb.WriteString(fmt.Sprintf("StartedAt: %s, ", a.StartedAt))
 	sb.WriteString(fmt.Sprintf("FinishedAt: %s", a.FinishedAt))
@@ -253,18 +294,18 @@ func newAmimeFromMediaListEntry(mediaList verniy.MediaList) (Anime, error) {
 	finishedAt := convertFuzzyDateToTimeOrNow(mediaList.CompletedAt)
 
 	return Anime{
-		EpisodeNumber: episodeNumber,
-		IDAnilist:     mediaList.Media.ID,
-		IDMal:         idMal,
-		Progress:      progress,
-		Score:         score,
-		SeasonYear:    year,
-		Status:        mapVerniyStatusToStatus(*mediaList.Status),
-		TitleEN:       titleEN,
-		TitleJP:       titleJP,
-		TitleRomaji:   romajiTitle,
-		StartedAt:     startedAt,
-		FinishedAt:    finishedAt,
+		NumEpisodes: episodeNumber,
+		IDAnilist:   mediaList.Media.ID,
+		IDMal:       idMal,
+		Progress:    progress,
+		Score:       score,
+		SeasonYear:  year,
+		Status:      mapVerniyStatusToStatus(*mediaList.Status),
+		TitleEN:     titleEN,
+		TitleJP:     titleJP,
+		TitleRomaji: romajiTitle,
+		StartedAt:   startedAt,
+		FinishedAt:  finishedAt,
 	}, nil
 }
 
@@ -287,17 +328,17 @@ func newAnimeFromMalAnime(malAnime mal.Anime) (Anime, error) {
 	}
 
 	return Anime{
-		EpisodeNumber: malAnime.NumEpisodes,
-		IDAnilist:     -1,
-		IDMal:         malAnime.ID,
-		Progress:      malAnime.MyListStatus.NumEpisodesWatched,
-		Score:         float64(malAnime.MyListStatus.Score),
-		SeasonYear:    malAnime.StartSeason.Year,
-		Status:        mapMalAnimeStatusToStatus(malAnime.MyListStatus.Status),
-		TitleEN:       titleEN,
-		TitleJP:       titleJP,
-		StartedAt:     startedAt,
-		FinishedAt:    finishedAt,
+		NumEpisodes: malAnime.NumEpisodes,
+		IDAnilist:   -1,
+		IDMal:       malAnime.ID,
+		Progress:    malAnime.MyListStatus.NumEpisodesWatched,
+		Score:       float64(malAnime.MyListStatus.Score),
+		SeasonYear:  malAnime.StartSeason.Year,
+		Status:      mapMalAnimeStatusToStatus(malAnime.MyListStatus.Status),
+		TitleEN:     titleEN,
+		TitleJP:     titleJP,
+		StartedAt:   startedAt,
+		FinishedAt:  finishedAt,
 	}, nil
 }
 
