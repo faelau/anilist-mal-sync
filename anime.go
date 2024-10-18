@@ -62,6 +62,10 @@ func (a Anime) GetTitle() string {
 }
 
 func (a Anime) IsSameAnime(b Anime) bool {
+	if a.IDMal == b.IDMal {
+		return true
+	}
+
 	eq := func(s1, s2 string) bool {
 		if len(s1) < len(s2) {
 			return strings.Contains(strings.ToLower(s2), strings.ToLower(s1))
@@ -74,7 +78,28 @@ func (a Anime) IsSameAnime(b Anime) bool {
 		titlesEq = eq(a.TitleJP, b.TitleJP)
 	}
 
-	return a.EpisodeNumber == b.EpisodeNumber && a.SeasonYear == b.SeasonYear && titlesEq
+	if titlesEq {
+		return true
+	}
+
+	aa := strings.ReplaceAll(a.TitleJP, " ", "")
+	bb := strings.ReplaceAll(b.TitleJP, " ", "")
+
+	c := 0
+	for i, r := range aa {
+		if r == rune(bb[i]) {
+			c = i
+		} else {
+			break
+		}
+	}
+
+	precent := float64(c) / float64(len(aa)) * 100
+	if precent > 80 {
+		return true
+	}
+
+	return false
 }
 
 func (a Anime) IsSameProgress(b Anime) bool {
