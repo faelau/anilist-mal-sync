@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 )
 
 var errStatusUnknown = errors.New("status unknown")
+
+var betweenBraketsRegexp = regexp.MustCompile(`\(.*\)`)
 
 type Status string
 
@@ -50,6 +54,7 @@ type Anime struct {
 	Status        Status
 	TitleEN       string
 	TitleJP       string
+	TitleRomaji   string
 	StartedAt     *time.Time
 	FinishedAt    *time.Time
 }
@@ -58,7 +63,10 @@ func (a Anime) GetTitle() string {
 	if a.TitleEN != "" {
 		return a.TitleEN
 	}
-	return a.TitleJP
+	if a.TitleJP != "" {
+		return a.TitleJP
+	}
+	return a.TitleRomaji
 }
 
 func (a Anime) IsSameAnime(b Anime) bool {
@@ -82,20 +90,46 @@ func (a Anime) IsSameAnime(b Anime) bool {
 		return true
 	}
 
+	f := func(s1, s2 string) bool {
+		if len(s1) < len(s2) {
+			s1, s2 = s2, s1
+		}
+
+		log.Println("s1: ", s1)
+		log.Println("s2: ", s2)
+
+		c := 0
+		for i, r := range s1 {
+			if r == rune(s2[i]) {
+				c = i
+			} else {
+				break
+			}
+		}
+
+		return float64(c)/float64(len(s1))*100 > 80
+	}
+
+	// JP
 	aa := strings.ReplaceAll(a.TitleJP, " ", "")
 	bb := strings.ReplaceAll(b.TitleJP, " ", "")
 
-	c := 0
-	for i, r := range aa {
-		if r == rune(bb[i]) {
-			c = i
-		} else {
-			break
-		}
+	if f(aa, bb) {
+		return true
 	}
 
-	precent := float64(c) / float64(len(aa)) * 100
-	if precent > 80 {
+	// EN
+	aa = strings.ReplaceAll(a.TitleEN, " ", "")
+	bb = strings.ReplaceAll(b.TitleEN, " ", "")
+
+	if f(aa, bb) {
+		return true
+	}
+
+	aa = betweenBraketsRegexp.ReplaceAllString(aa, "")
+	bb = betweenBraketsRegexp.ReplaceAllString(bb, "")
+
+	if f(aa, bb) {
 		return true
 	}
 
@@ -210,6 +244,11 @@ func newAmimeFromMediaListEntry(mediaList verniy.MediaList) (Anime, error) {
 		idMal = *mediaList.Media.IDMAL
 	}
 
+	var romajiTitle string
+	if mediaList.Media.Title.Romaji != nil {
+		romajiTitle = *mediaList.Media.Title.Romaji
+	}
+
 	startedAt := convertFuzzyDateToTimeOrNow(mediaList.StartedAt)
 	finishedAt := convertFuzzyDateToTimeOrNow(mediaList.CompletedAt)
 
@@ -223,6 +262,7 @@ func newAmimeFromMediaListEntry(mediaList verniy.MediaList) (Anime, error) {
 		Status:        mapVerniyStatusToStatus(*mediaList.Status),
 		TitleEN:       titleEN,
 		TitleJP:       titleJP,
+		TitleRomaji:   romajiTitle,
 		StartedAt:     startedAt,
 		FinishedAt:    finishedAt,
 	}, nil
@@ -236,6 +276,16 @@ func newAnimeFromMalAnime(malAnime mal.Anime) (Anime, error) {
 	startedAt := parseDateOrNow(malAnime.MyListStatus.StartDate)
 	finishedAt := parseDateOrNow(malAnime.MyListStatus.FinishDate)
 
+	titleEN := malAnime.Title
+	if malAnime.AlternativeTitles.En != "" {
+		titleEN = malAnime.AlternativeTitles.En
+	}
+
+	titleJP := malAnime.Title
+	if malAnime.AlternativeTitles.Ja != "" {
+		titleJP = malAnime.AlternativeTitles.Ja
+	}
+
 	return Anime{
 		EpisodeNumber: malAnime.NumEpisodes,
 		IDAnilist:     -1,
@@ -244,8 +294,8 @@ func newAnimeFromMalAnime(malAnime mal.Anime) (Anime, error) {
 		Score:         float64(malAnime.MyListStatus.Score),
 		SeasonYear:    malAnime.StartSeason.Year,
 		Status:        mapMalAnimeStatusToStatus(malAnime.MyListStatus.Status),
-		TitleEN:       malAnime.Title,
-		TitleJP:       malAnime.AlternativeTitles.Ja,
+		TitleEN:       titleEN,
+		TitleJP:       titleJP,
 		StartedAt:     startedAt,
 		FinishedAt:    finishedAt,
 	}, nil

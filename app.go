@@ -28,6 +28,7 @@ type App struct {
 	forceSync bool
 	dryRun    bool
 	stats     *Statistics
+	ignore    map[string]struct{}
 }
 
 func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*App, error) {
@@ -66,6 +67,9 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*A
 		forceSync: forceSync,
 		dryRun:    dryRun,
 		stats:     &Statistics{},
+		ignore: map[string]struct{}{
+			"Scott Pilgrim Takes Off": {}, // this anime is not in MAL
+		},
 	}, nil
 }
 
@@ -138,6 +142,11 @@ func (a *App) processAnimeList(ctx context.Context, srcAnimeList []verniy.MediaL
 			src, err := newAmimeFromMediaListEntry(entry)
 			if err != nil {
 				log.Printf("error creating anime: %v", err)
+				continue
+			}
+
+			if _, ok := a.ignore[src.GetTitle()]; ok {
+				log.Printf("Ignoring anime: %s", src.GetTitle())
 				continue
 			}
 
