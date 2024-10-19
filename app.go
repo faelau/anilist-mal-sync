@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
+	"github.com/nstratos/go-myanimelist/mal"
 	"github.com/rl404/verniy"
 )
 
@@ -27,6 +29,7 @@ type App struct {
 	forceSync bool
 	dryRun    bool
 	stats     *Statistics
+	ignore    map[string]struct{}
 }
 
 func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*App, error) {
@@ -65,6 +68,10 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*A
 		forceSync: forceSync,
 		dryRun:    dryRun,
 		stats:     &Statistics{},
+		ignore: map[string]struct{}{ // in lowercase
+			"scott pilgrim takes off":       {}, // this anime is not in MAL
+			"bocchi the rock! recap part 2": {}, // this anime is not in MAL
+		},
 	}, nil
 }
 
@@ -140,6 +147,11 @@ func (a *App) processAnimeList(ctx context.Context, srcAnimeList []verniy.MediaL
 				continue
 			}
 
+			if _, ok := a.ignore[strings.ToLower(src.GetTitle())]; ok {
+				log.Printf("Ignoring anime: %s", src.GetTitle())
+				continue
+			}
+
 			a.processSingleAnime(ctx, src, tgtAnimeMap)
 		}
 	}
@@ -153,7 +165,7 @@ func (a *App) processSingleAnime(ctx context.Context, src Anime, tgtAnimeMap map
 			return
 		}
 
-		if src.IsSameProgress(tgt) && src.IsSameDates(tgt) {
+		if src.IsSameProgress(tgt) /* && src.IsSameDates(tgt) */ {
 			a.stats.SkippedCount++
 			return
 		}
@@ -172,34 +184,47 @@ func (a *App) processSingleAnime(ctx context.Context, src Anime, tgtAnimeMap map
 }
 
 func (a *App) getOrFetchTargetAnime(ctx context.Context, src Anime, tgtAnimeMap map[int]Anime) (Anime, error) {
-	tgt, ok := tgtAnimeMap[src.IDMal]
-	if !ok {
-		malAnime, err := a.mal.GetAnimeByID(ctx, src.IDMal)
+	if tgt, ok := tgtAnimeMap[src.IDMal]; ok {
+		return tgt, nil
+	}
+
+	f := func(a mal.Anime) (Anime, error) {
+		tgt, err := newAnimeFromMalAnime(a)
 		if err != nil {
-			if errors.Is(err, errEmptyMalID) {
-				malAnimeList, err := a.mal.GetAnimesByName(ctx, src.GetTitle())
-				if err != nil {
-					return Anime{}, fmt.Errorf("error getting mal anime: %s, %w", src.GetTitle(), err)
-				}
-
-				malAnime = &malAnimeList[0]
-
-				log.Printf("Found %d animes for %s", len(malAnimeList), malAnime.Title)
-			} else {
-				return Anime{}, fmt.Errorf("error getting mal anime: %s, %w", src.GetTitle(), err)
-			}
-		}
-
-		tgt, err = newAnimeFromMalAnime(*malAnime)
-		if err != nil {
-			return Anime{}, fmt.Errorf("error creating anime: %s, %w", src.GetTitle(), err)
+			return Anime{}, fmt.Errorf("error creating anime: %w: %+v", err, a)
 		}
 
 		if !src.IsSameAnime(tgt) {
-			return Anime{}, fmt.Errorf("anime %s not found in MAL", src.GetTitle())
+			log.Printf("Different animes: \nsrc: %+v\ntgt: %+v", src, tgt)
+			return Anime{}, fmt.Errorf("animes are different: %+v, %+v", src, tgt)
 		}
+		return tgt, nil
 	}
-	return tgt, nil
+
+	malAnime, err := a.mal.GetAnimeByID(ctx, src.IDMal)
+	switch {
+	case err == nil:
+		return f(*malAnime)
+	case errors.Is(err, errEmptyMalID):
+		malAnimeList, err := a.mal.GetAnimesByName(ctx, src.GetTitle())
+		if err != nil {
+			return Anime{}, fmt.Errorf("error getting mal anime: %s, %w", src.GetTitle(), err)
+		}
+
+		for _, a := range malAnimeList {
+			tgt, err := f(a)
+			if err == nil {
+				return tgt, nil
+			}
+
+			log.Printf("error getting mal anime by name: %v", err)
+			continue
+		}
+
+		return Anime{}, fmt.Errorf("error getting mal anime by name: %s: not found", src.GetTitle())
+	default:
+		return Anime{}, fmt.Errorf("error getting mal anime by id: %s: %w", src.GetTitle(), err)
+	}
 }
 
 func (a *App) updateAnime(ctx context.Context, src Anime) {
