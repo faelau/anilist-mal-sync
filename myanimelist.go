@@ -27,12 +27,7 @@ type MyAnimeListClient struct {
 }
 
 func NewMyAnimeListClient(ctx context.Context, oauth *OAuth, username string) (*MyAnimeListClient, error) {
-	token := oauth.GetToken()
-	if token == nil {
-		return nil, errors.New("token is nil")
-	}
-
-	httpClient := oauth.Config.Client(ctx, token)
+	httpClient := oauth2.NewClient(ctx, oauth.TokenSource())
 	httpClient.Timeout = 10 * time.Minute
 
 	client := mal.NewClient(httpClient)
@@ -126,6 +121,7 @@ func NewMyAnimeListOAuth(ctx context.Context, config Config) (*OAuth, error) {
 	code := url.QueryEscape(randHttpParamString(43))
 
 	oauthMAL, err := NewOAuth(
+		ctx,
 		config.MyAnimeList,
 		config.OAuth.RedirectURI,
 		"myanimelist",
@@ -140,12 +136,11 @@ func NewMyAnimeListOAuth(ctx context.Context, config Config) (*OAuth, error) {
 		return nil, err
 	}
 
-	if oauthMAL.GetToken() != nil {
+	if oauthMAL.NeedInit() {
+		getToken(ctx, oauthMAL, config.OAuth.Port)
+	} else {
 		log.Println("Token already set, no need to start server")
-		return oauthMAL, nil
 	}
-
-	getToken(ctx, oauthMAL, config.OAuth.Port)
 
 	return oauthMAL, nil
 }

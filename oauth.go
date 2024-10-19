@@ -28,11 +28,13 @@ type OAuth struct {
 	siteName        string
 	authCodeOptions []oauth2.AuthCodeOption
 	tokenFilePath   string
+	ctx             context.Context
 
 	Config *oauth2.Config
 }
 
 func NewOAuth(
+	ctx context.Context,
 	config SiteConfig,
 	redirectURI string,
 	siteName string,
@@ -60,7 +62,9 @@ func NewOAuth(
 		siteName:        siteName,
 		authCodeOptions: authCodeOptions,
 		tokenFilePath:   tokenFilePath,
+		ctx:             ctx,
 	}
+
 	oauth.loadTokenFromFile()
 
 	return oauth, nil
@@ -79,8 +83,33 @@ func (oauth *OAuth) ExchangeToken(ctx context.Context, code string) error {
 	return oauth.saveTokenToFile()
 }
 
-func (oauth *OAuth) GetToken() *oauth2.Token {
-	return oauth.token
+func (oauth *OAuth) TokenSource() oauth2.TokenSource {
+	return oauth2.ReuseTokenSourceWithExpiry(oauth.token, oauth, 24*time.Hour)
+}
+
+func (oauth *OAuth) Token() (*oauth2.Token, error) {
+	log.Printf("Refreshing token for %s", oauth.siteName)
+
+	t, err := oauth.Config.TokenSource(oauth.ctx, oauth.token).Token()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Token refreshed for %s", oauth.siteName)
+
+	oauth.token = t
+
+	if err = oauth.saveTokenToFile(); err != nil {
+		return nil, err
+	}
+
+	log.Printf("Token saved for %s", oauth.siteName)
+
+	return t, nil
+}
+
+func (oauth *OAuth) NeedInit() bool {
+	return oauth.token == nil
 }
 
 func (oauth *OAuth) loadTokenFromFile() {
@@ -91,6 +120,7 @@ func (oauth *OAuth) loadTokenFromFile() {
 	}
 
 	if token, exists := tokenFile.Tokens[oauth.siteName]; exists {
+		log.Printf("Token loaded for %s", oauth.siteName)
 		oauth.token = token
 	}
 }
@@ -164,8 +194,7 @@ func startServer(ctx context.Context, oauth *OAuth, port string, done chan<- boo
 			log.Fatalf("Error exchanging code for token: %v", err)
 		}
 
-		token := oauth.GetToken()
-		if token != nil {
+		if !oauth.NeedInit() {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
 
@@ -17,11 +16,7 @@ type AnilistClient struct {
 }
 
 func NewAnilistClient(ctx context.Context, oauth *OAuth, username string) (*AnilistClient, error) {
-	if oauth.GetToken() == nil {
-		return nil, errors.New("token is nil")
-	}
-
-	httpClient := oauth.Config.Client(ctx, oauth.GetToken())
+	httpClient := oauth2.NewClient(ctx, oauth.TokenSource())
 	httpClient.Timeout = 10 * time.Minute
 
 	v := verniy.New()
@@ -63,6 +58,7 @@ func (c *AnilistClient) GetUserAnimeList(ctx context.Context) ([]verniy.MediaLis
 
 func NewAnilistOAuth(ctx context.Context, config Config) (*OAuth, error) {
 	oauthAnilist, err := NewOAuth(
+		ctx,
 		config.Anilist,
 		config.OAuth.RedirectURI,
 		"anilist",
@@ -75,12 +71,11 @@ func NewAnilistOAuth(ctx context.Context, config Config) (*OAuth, error) {
 		return nil, err
 	}
 
-	if oauthAnilist.GetToken() != nil {
+	if oauthAnilist.NeedInit() {
+		getToken(ctx, oauthAnilist, config.OAuth.Port)
+	} else {
 		log.Println("Token already set, no need to start server")
-		return oauthAnilist, nil
 	}
-
-	getToken(ctx, oauthAnilist, config.OAuth.Port)
 
 	return oauthAnilist, nil
 }
