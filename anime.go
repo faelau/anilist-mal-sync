@@ -126,11 +126,7 @@ func (a Anime) IsSameAnime(b Anime) bool {
 	aa = betweenBraketsRegexp.ReplaceAllString(aa, "")
 	bb = betweenBraketsRegexp.ReplaceAllString(bb, "")
 
-	if f(aa, bb) {
-		return true
-	}
-
-	return false
+	return f(aa, bb)
 }
 
 func (a Anime) IsSameProgress(b Anime) bool {
