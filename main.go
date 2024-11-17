@@ -10,10 +10,14 @@ import (
 
 const debug = false
 
+var (
+	configFile = flag.String("c", "config.yaml", "path to config file")
+	forceSync  = flag.Bool("f", false, "force sync all animes")
+	dryRun     = flag.Bool("d", false, "dry run without updating MyAnimeList")
+	mangaSync  = flag.Bool("manga", false, "sync manga instead of anime")
+)
+
 func main() {
-	configFile := flag.String("c", "config.yaml", "path to config file")
-	forceSync := flag.Bool("f", false, "force sync all animes")
-	dryRun := flag.Bool("d", false, "dry run without updating MyAnimeList")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -24,7 +28,7 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	app, err := NewApp(ctx, config, *forceSync, *dryRun)
+	app, err := NewApp(ctx, config, *forceSync, *dryRun, *mangaSync)
 	if err != nil {
 		log.Fatalf("create app: %v", err)
 	}

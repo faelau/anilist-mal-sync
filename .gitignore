@@ -2,3 +2,4 @@
 .token*
 bin/
 config.yaml
+*tmp.json

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -28,11 +29,12 @@ type App struct {
 	anilist   *AnilistClient
 	forceSync bool
 	dryRun    bool
+	mangaSync bool
 	stats     *Statistics
 	ignore    map[string]struct{}
 }
 
-func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*App, error) {
+func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool, syncManga bool) (*App, error) {
 	oauthMAL, err := NewMyAnimeListOAuth(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("error creating mal oauth: %w", err)
@@ -67,8 +69,9 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*A
 		anilist:   anilistClient,
 		forceSync: forceSync,
 		dryRun:    dryRun,
+		mangaSync: syncManga,
 		stats:     &Statistics{},
-		ignore: map[string]struct{}{ // in lowercase
+		ignore: map[string]struct{}{ // in lowercase, TODO: move to config
 			"scott pilgrim takes off":       {}, // this anime is not in MAL
 			"bocchi the rock! recap part 2": {}, // this anime is not in MAL
 		},
@@ -76,6 +79,18 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool) (*A
 }
 
 func (a *App) Run(ctx context.Context) error {
+	if a.mangaSync {
+		log.Println("Syncing manga")
+
+		return a.syncManga(ctx)
+	}
+
+	log.Println("Syncing anime")
+
+	return a.syncAnime(ctx)
+}
+
+func (a *App) syncAnime(ctx context.Context) error {
 	srcAnimeList, err := a.anilist.GetUserAnimeList(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting user anime list: %w", err)
@@ -97,12 +112,17 @@ func (a *App) Run(ctx context.Context) error {
 	return nil
 }
 
-func countAnimes(srcAnimeList []verniy.MediaListGroup) int {
-	var count int
-	for _, a := range srcAnimeList {
-		count += len(a.Entries)
+func (a *App) syncManga(ctx context.Context) error {
+	r, err := a.anilist.GetUserMangaList(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting user manga list: %w", err)
 	}
-	return count
+
+	if data, err := json.Marshal(r); err == nil {
+		fmt.Println(string(data))
+	}
+
+	return nil
 }
 
 func (a *App) getTargetAnimeMap(ctx context.Context) (map[int]Anime, error) {
@@ -242,4 +262,12 @@ func (a *App) updateAnime(ctx context.Context, src Anime) {
 
 	log.Printf("Anime updated")
 	a.stats.UpdatedCount++
+}
+
+func countAnimes(srcAnimeList []verniy.MediaListGroup) int {
+	var count int
+	for _, a := range srcAnimeList {
+		count += len(a.Entries)
+	}
+	return count
 }
