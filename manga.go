@@ -94,27 +94,19 @@ func (m Manga) SameProgressWithTarget(t Target) bool {
 	}
 
 	if m.Status != b.Status {
-		if debug {
-			log.Printf("Status: %s != %s", m.Status, b.Status)
-		}
+		DPrintf("Status: %s != %s", m.Status, b.Status)
 		return false
 	}
 	if m.Score != b.Score {
-		if debug {
-			log.Printf("Score: %f != %f", m.Score, b.Score)
-		}
+		DPrintf("Score: %f != %f", m.Score, b.Score)
 		return false
 	}
 	if m.Progress != b.Progress {
-		if debug {
-			log.Printf("Progress: %d != %d", m.Progress, b.Progress)
-		}
+		DPrintf("Progress: %d != %d", m.Progress, b.Progress)
 		return false
 	}
 	if m.ProgressVolumes != b.ProgressVolumes {
-		if debug {
-			log.Printf("ProgressVolumes: %d != %d", m.ProgressVolumes, b.ProgressVolumes)
-		}
+		DPrintf("ProgressVolumes: %d != %d", m.ProgressVolumes, b.ProgressVolumes)
 		return false
 	}
 
@@ -122,68 +114,32 @@ func (m Manga) SameProgressWithTarget(t Target) bool {
 }
 
 func (m Manga) SameTypeWithTarget(t Target) bool {
-	if m.GetTargetID() == t.GetTargetID() {
-		return true
-	}
-
 	b, ok := t.(Manga)
 	if !ok {
 		return false
 	}
 
-	eq := func(s1, s2 string) bool {
-		if len(s1) < len(s2) {
-			return strings.Contains(strings.ToLower(s2), strings.ToLower(s1))
-		}
-		return strings.Contains(strings.ToLower(s1), strings.ToLower(s2))
-	}
-
-	titlesEq := eq(m.TitleEN, b.TitleEN)
-	if !titlesEq {
-		titlesEq = eq(m.TitleJP, b.TitleJP)
-	}
-
-	if titlesEq {
+	if m.IDMal == b.IDMal || m.IDAnilist == b.IDAnilist {
 		return true
 	}
 
-	f := func(s1, s2 string) bool {
-		if len(s1) < len(s2) {
-			s1, s2 = s2, s1
-		}
-
-		c := 0
-		for i, r := range s1 {
-			if r == rune(s2[i]) {
-				c = i
-			} else {
-				break
-			}
-		}
-
-		return float64(c)/float64(len(s1))*100 > 80
-	}
-
-	// JP
-	aa := strings.ReplaceAll(m.TitleJP, " ", "")
-	bb := strings.ReplaceAll(b.TitleJP, " ", "")
-
-	if f(aa, bb) {
+	if m.TitleEN != "" && b.TitleEN != "" && strings.EqualFold(m.TitleEN, b.TitleEN) {
 		return true
 	}
 
-	// EN
-	aa = strings.ReplaceAll(m.TitleEN, " ", "")
-	bb = strings.ReplaceAll(b.TitleEN, " ", "")
-
-	if f(aa, bb) {
+	if m.TitleJP != "" && b.TitleJP != "" && strings.EqualFold(m.TitleJP, b.TitleJP) {
 		return true
 	}
 
-	aa = betweenBraketsRegexp.ReplaceAllString(aa, "")
-	bb = betweenBraketsRegexp.ReplaceAllString(bb, "")
+	if m.TitleRomaji != "" && b.TitleRomaji != "" && strings.EqualFold(m.TitleRomaji, b.TitleRomaji) {
+		return true
+	}
 
-	return f(aa, bb)
+	if m.Chapters == b.Chapters && m.Volumes == b.Volumes {
+		return true
+	}
+
+	return false
 }
 
 func (m Manga) GetUpdateMyAnimeListStatusOption() []mal.UpdateMyAnimeListStatusOption {

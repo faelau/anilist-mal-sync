@@ -8,13 +8,13 @@ import (
 	"syscall"
 )
 
-const debug = false
-
 var (
 	configFile = flag.String("c", "config.yaml", "path to config file")
 	forceSync  = flag.Bool("f", false, "force sync all animes")
 	dryRun     = flag.Bool("d", false, "dry run without updating MyAnimeList")
 	mangaSync  = flag.Bool("manga", false, "sync manga instead of anime")
+	allSync    = flag.Bool("all", false, "sync all animes and mangas")
+	verbose    = flag.Bool("verbose", false, "enable verbose logging")
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	app, err := NewApp(ctx, config, *forceSync, *dryRun, *mangaSync)
+	app, err := NewApp(ctx, config)
 	if err != nil {
 		log.Fatalf("create app: %v", err)
 	}

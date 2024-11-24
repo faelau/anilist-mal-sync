@@ -9,8 +9,6 @@ import (
 type App struct {
 	config Config
 
-	syncMangaFlag bool
-
 	mal     *MyAnimeListClient
 	anilist *AnilistClient
 
@@ -18,7 +16,7 @@ type App struct {
 	mangaUpdater *Updater
 }
 
-func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool, syncManga bool) (*App, error) {
+func NewApp(ctx context.Context, config Config) (*App, error) {
 	oauthMAL, err := NewMyAnimeListOAuth(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("error creating mal oauth: %w", err)
@@ -48,9 +46,6 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool, syn
 	log.Println("Anilist client created")
 
 	animeUpdater := &Updater{
-		ForceSync: forceSync,
-		DryRun:    dryRun,
-
 		Prefix:     "Anime",
 		Statistics: new(Statistics),
 		IgnoreTitles: map[string]struct{}{ // in lowercase, TODO: move to config
@@ -91,9 +86,6 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool, syn
 	}
 
 	mangaUpdater := &Updater{
-		ForceSync: forceSync,
-		DryRun:    dryRun,
-
 		Prefix:       "Manga",
 		Statistics:   new(Statistics),
 		IgnoreTitles: map[string]struct{}{},
@@ -119,11 +111,11 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool, syn
 		},
 
 		UpdateTargetBySourceFunc: func(ctx context.Context, id TargetID, src Source) error {
-			a, ok := src.(Manga)
+			m, ok := src.(Manga)
 			if !ok {
 				return fmt.Errorf("source is not an anime")
 			}
-			if err := malClient.UpdateMangaByIDAndOptions(ctx, int(id), a.GetUpdateOptions()); err != nil {
+			if err := malClient.UpdateMangaByIDAndOptions(ctx, int(id), m.GetUpdateOptions()); err != nil {
 				return fmt.Errorf("error updating anime by id and options: %w", err)
 			}
 			return nil
@@ -131,26 +123,27 @@ func NewApp(ctx context.Context, config Config, forceSync bool, dryRun bool, syn
 	}
 
 	return &App{
-		config:        config,
-		syncMangaFlag: syncManga,
-		mal:           malClient,
-		anilist:       anilistClient,
-		animeUpdater:  animeUpdater,
-		mangaUpdater:  mangaUpdater,
+		config:       config,
+		mal:          malClient,
+		anilist:      anilistClient,
+		animeUpdater: animeUpdater,
+		mangaUpdater: mangaUpdater,
 	}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
-	if a.syncMangaFlag {
+	if *mangaSync || *allSync {
 		if err := a.syncManga(ctx); err != nil {
 			return fmt.Errorf("error syncing manga: %w", err)
 		}
-		return nil
 	}
 
-	if err := a.syncAnime(ctx); err != nil {
-		return fmt.Errorf("error syncing anime: %w", err)
+	if !(*mangaSync) || *allSync {
+		if err := a.syncAnime(ctx); err != nil {
+			return fmt.Errorf("error syncing anime: %w", err)
+		}
 	}
+
 	return nil
 }
 

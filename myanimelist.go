@@ -118,7 +118,7 @@ func (c *MyAnimeListClient) GetUserMangaList(ctx context.Context) ([]mal.UserMan
 }
 
 func (c *MyAnimeListClient) GetMangasByName(ctx context.Context, name string) ([]mal.Manga, error) {
-	l, _, err := c.c.Manga.List(ctx, name, mangaFields, mal.Limit(3))
+	l, _, err := c.c.Manga.List(ctx, name, mangaFields, mal.Limit(10))
 	if err != nil {
 		return nil, err
 	}
