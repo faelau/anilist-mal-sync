@@ -136,6 +136,8 @@ func (m Manga) SameTypeWithTarget(t Target) bool {
 	}
 
 	if m.Chapters == b.Chapters && m.Volumes == b.Volumes {
+		// NOTE: some mangas are joined in MAL in the same entry in Volumes, but it is separated in Anilist.
+		// Skip it for now.
 		return true
 	}
 
