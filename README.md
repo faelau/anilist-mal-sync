@@ -1,4 +1,4 @@
-# anilist-mal-sync
+# anilist-mal-sync [![Build Status](https://github.com/bigspawn/anilist-mal-sync/workflows/go/badge.svg)](https://github.com/bigspawn/anilist-mal-sync/actions)
 
 Programm to synchronize your AniList and MyAnimeList accounts.
 
