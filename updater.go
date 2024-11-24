@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-
-	"github.com/nstratos/go-myanimelist/mal"
 )
 
 type TargetID int
@@ -18,7 +16,6 @@ type Source interface {
 	GetStringDiffWithTarget(Target) string
 	SameProgressWithTarget(Target) bool
 	SameTypeWithTarget(Target) bool
-	GetUpdateMyAnimeListStatusOption() []mal.UpdateMyAnimeListStatusOption
 }
 
 type Target interface {
@@ -127,14 +124,14 @@ func (u *Updater) findTarget(ctx context.Context, src Source) (Target, error) {
 }
 
 func (u *Updater) updateTarget(ctx context.Context, id TargetID, src Source) {
-	log.Printf("[%s] updating %s", u.Prefix, src.GetTitle())
+	log.Printf("[%s] Updating %s", u.Prefix, src.GetTitle())
 
 	if err := u.UpdateTargetBySourceFunc(ctx, id, src); err != nil {
-		log.Printf("[%s] error updating target: %s: %v", u.Prefix, src.GetTitle(), err)
+		log.Printf("[%s] Error updating target: %s: %v", u.Prefix, src.GetTitle(), err)
 		return
 	}
 
-	log.Printf("[%s] updated %s", u.Prefix, src.GetTitle())
+	log.Printf("[%s] Updated %s", u.Prefix, src.GetTitle())
 
 	u.Statistics.UpdatedCount++
 }

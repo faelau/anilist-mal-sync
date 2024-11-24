@@ -20,6 +20,14 @@ var animeFields = mal.Fields{
 	"start_season",
 }
 
+var mangaFields = mal.Fields{
+	"alternative_titles",
+	"num_volumes",
+	"num_chapters",
+	"my_list_status",
+	"start_date",
+}
+
 type MyAnimeListClient struct {
 	c *mal.Client
 
@@ -77,47 +85,7 @@ func (c *MyAnimeListClient) GetAnimeByID(ctx context.Context, id int) (*mal.Anim
 	return anime, nil
 }
 
-func (c *MyAnimeListClient) UpdateAnime(ctx context.Context, anime Anime) error {
-	if anime.IDMal <= 0 {
-		return errEmptyMalID
-	}
-
-	st, err := anime.Status.GetMalStatus()
-	if err != nil {
-		return err
-	}
-
-	opts := []mal.UpdateMyAnimeListStatusOption{
-		st,
-		mal.Score(anime.Score),
-		mal.NumEpisodesWatched(anime.Progress),
-	}
-
-	if anime.StartedAt != nil {
-		opts = append(opts, mal.StartDate(*anime.StartedAt))
-	} else {
-		opts = append(opts, mal.StartDate(time.Time{}))
-	}
-
-	if anime.Status == StatusCompleted && anime.FinishedAt != nil {
-		opts = append(opts, mal.FinishDate(*anime.FinishedAt))
-	} else {
-		opts = append(opts, mal.FinishDate(time.Time{}))
-	}
-
-	_, _, err = c.c.Anime.UpdateMyListStatus(
-		ctx,
-		anime.IDMal,
-		opts...,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *MyAnimeListClient) UpdateByIDAndOptions(ctx context.Context, id int, opts []mal.UpdateMyAnimeListStatusOption) error {
+func (c *MyAnimeListClient) UpdateAnimeByIDAndOptions(ctx context.Context, id int, opts []mal.UpdateMyAnimeListStatusOption) error {
 	if len(opts) == 0 {
 		return nil
 	}
@@ -133,7 +101,7 @@ func (c *MyAnimeListClient) GetUserMangaList(ctx context.Context) ([]mal.UserMan
 	var userMangaList []mal.UserManga
 	var offset int
 	for {
-		list, resp, err := c.c.User.MangaList(ctx, c.username, mal.Offset(offset), mal.Limit(100))
+		list, resp, err := c.c.User.MangaList(ctx, c.username, mangaFields, mal.Offset(offset), mal.Limit(100))
 		if err != nil {
 			return nil, err
 		}
@@ -147,6 +115,40 @@ func (c *MyAnimeListClient) GetUserMangaList(ctx context.Context) ([]mal.UserMan
 		offset = resp.NextOffset
 	}
 	return userMangaList, nil
+}
+
+func (c *MyAnimeListClient) GetMangasByName(ctx context.Context, name string) ([]mal.Manga, error) {
+	l, _, err := c.c.Manga.List(ctx, name, mangaFields, mal.Limit(3))
+	if err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func (c *MyAnimeListClient) GetMangaByID(ctx context.Context, id int) (*mal.Manga, error) {
+	if id <= 0 {
+		return nil, errEmptyMalID
+	}
+
+	m, _, err := c.c.Manga.Details(ctx, id, mangaFields)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *MyAnimeListClient) UpdateMangaByIDAndOptions(ctx context.Context, id int, opts []mal.UpdateMyMangaListStatusOption) error {
+	if len(opts) == 0 {
+		return nil
+	}
+
+	_, _, err := c.c.Manga.UpdateMyListStatus(ctx, id, opts...)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewMyAnimeListOAuth(ctx context.Context, config Config) (*OAuth, error) {

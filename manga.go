@@ -2,6 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/nstratos/go-myanimelist/mal"
@@ -19,6 +22,23 @@ const (
 	MangaStatusUnknown    MangaStatus = "unknown"
 )
 
+func (s MangaStatus) GetMalStatus() (mal.MangaStatus, error) {
+	switch s {
+	case MangaStatusReading:
+		return mal.MangaStatusReading, nil
+	case MangaStatusCompleted:
+		return mal.MangaStatusCompleted, nil
+	case MangaStatusOnHold:
+		return mal.MangaStatusOnHold, nil
+	case MangaStatusDropped:
+		return mal.MangaStatusDropped, nil
+	case MangaStatusPlanToRead:
+		return mal.MangaStatusPlanToRead, nil
+	default:
+		return "", errors.New("unknown status")
+	}
+}
+
 type Manga struct {
 	IDAnilist       int
 	IDMal           int
@@ -33,6 +53,199 @@ type Manga struct {
 	Volumes         int
 	StartedAt       *time.Time
 	FinishedAt      *time.Time
+}
+
+func (m Manga) GetTargetID() TargetID {
+	return TargetID(m.IDMal)
+}
+
+func (m Manga) GetStatusString() string {
+	return string(m.Status)
+}
+
+func (m Manga) GetStringDiffWithTarget(t Target) string {
+	b, ok := t.(Manga)
+	if !ok {
+		return "Diff{undefined}"
+	}
+
+	sb := strings.Builder{}
+	sb.WriteString("Diff{")
+	if m.Status != b.Status {
+		sb.WriteString(fmt.Sprintf("Status: %s -> %s, ", m.Status, b.Status))
+	}
+	if m.Score != b.Score {
+		sb.WriteString(fmt.Sprintf("Score: %f -> %f, ", m.Score, b.Score))
+	}
+	if m.Progress != b.Progress {
+		sb.WriteString(fmt.Sprintf("Progress: %d -> %d, ", m.Progress, b.Progress))
+	}
+	if m.ProgressVolumes != b.ProgressVolumes {
+		sb.WriteString(fmt.Sprintf("ProgressVolumes: %d -> %d, ", m.ProgressVolumes, b.ProgressVolumes))
+	}
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (m Manga) SameProgressWithTarget(t Target) bool {
+	b, ok := t.(Manga)
+	if !ok {
+		return false
+	}
+
+	if m.Status != b.Status {
+		if debug {
+			log.Printf("Status: %s != %s", m.Status, b.Status)
+		}
+		return false
+	}
+	if m.Score != b.Score {
+		if debug {
+			log.Printf("Score: %f != %f", m.Score, b.Score)
+		}
+		return false
+	}
+	if m.Progress != b.Progress {
+		if debug {
+			log.Printf("Progress: %d != %d", m.Progress, b.Progress)
+		}
+		return false
+	}
+	if m.ProgressVolumes != b.ProgressVolumes {
+		if debug {
+			log.Printf("ProgressVolumes: %d != %d", m.ProgressVolumes, b.ProgressVolumes)
+		}
+		return false
+	}
+
+	return true
+}
+
+func (m Manga) SameTypeWithTarget(t Target) bool {
+	if m.GetTargetID() == t.GetTargetID() {
+		return true
+	}
+
+	b, ok := t.(Manga)
+	if !ok {
+		return false
+	}
+
+	eq := func(s1, s2 string) bool {
+		if len(s1) < len(s2) {
+			return strings.Contains(strings.ToLower(s2), strings.ToLower(s1))
+		}
+		return strings.Contains(strings.ToLower(s1), strings.ToLower(s2))
+	}
+
+	titlesEq := eq(m.TitleEN, b.TitleEN)
+	if !titlesEq {
+		titlesEq = eq(m.TitleJP, b.TitleJP)
+	}
+
+	if titlesEq {
+		return true
+	}
+
+	f := func(s1, s2 string) bool {
+		if len(s1) < len(s2) {
+			s1, s2 = s2, s1
+		}
+
+		c := 0
+		for i, r := range s1 {
+			if r == rune(s2[i]) {
+				c = i
+			} else {
+				break
+			}
+		}
+
+		return float64(c)/float64(len(s1))*100 > 80
+	}
+
+	// JP
+	aa := strings.ReplaceAll(m.TitleJP, " ", "")
+	bb := strings.ReplaceAll(b.TitleJP, " ", "")
+
+	if f(aa, bb) {
+		return true
+	}
+
+	// EN
+	aa = strings.ReplaceAll(m.TitleEN, " ", "")
+	bb = strings.ReplaceAll(b.TitleEN, " ", "")
+
+	if f(aa, bb) {
+		return true
+	}
+
+	aa = betweenBraketsRegexp.ReplaceAllString(aa, "")
+	bb = betweenBraketsRegexp.ReplaceAllString(bb, "")
+
+	return f(aa, bb)
+}
+
+func (m Manga) GetUpdateMyAnimeListStatusOption() []mal.UpdateMyAnimeListStatusOption {
+	return nil
+}
+
+func (m Manga) GetTitle() string {
+	if m.TitleEN != "" {
+		return m.TitleEN
+	}
+	if m.TitleJP != "" {
+		return m.TitleJP
+	}
+	return m.TitleRomaji
+}
+
+func (m Manga) String() string {
+	sb := strings.Builder{}
+	sb.WriteString("Manga{")
+	sb.WriteString(fmt.Sprintf("IDAnilist: %d, ", m.IDAnilist))
+	sb.WriteString(fmt.Sprintf("IDMal: %d, ", m.IDMal))
+	sb.WriteString(fmt.Sprintf("TitleEN: %s, ", m.TitleEN))
+	sb.WriteString(fmt.Sprintf("TitleJP: %s, ", m.TitleJP))
+	sb.WriteString(fmt.Sprintf("Status: %s, ", m.Status))
+	sb.WriteString(fmt.Sprintf("Score: %f, ", m.Score))
+	sb.WriteString(fmt.Sprintf("Progress: %d, ", m.Progress))
+	sb.WriteString(fmt.Sprintf("ProgressVolumes: %d, ", m.ProgressVolumes))
+	sb.WriteString(fmt.Sprintf("Chapters: %d, ", m.Chapters))
+	sb.WriteString(fmt.Sprintf("Volumes: %d, ", m.Volumes))
+	sb.WriteString(fmt.Sprintf("StartedAt: %s, ", m.StartedAt))
+	sb.WriteString(fmt.Sprintf("FinishedAt: %s", m.FinishedAt))
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (m Manga) GetUpdateOptions() []mal.UpdateMyMangaListStatusOption {
+	st, err := m.Status.GetMalStatus()
+	if err != nil {
+		log.Printf("Error getting MAL status: %v", err)
+		return nil
+	}
+
+	opts := []mal.UpdateMyMangaListStatusOption{
+		st,
+		mal.Score(m.Score),
+		mal.NumChaptersRead(m.Progress),
+		mal.NumVolumesRead(m.ProgressVolumes),
+	}
+
+	if m.StartedAt != nil {
+		opts = append(opts, mal.StartDate(*m.StartedAt))
+	} else {
+		opts = append(opts, mal.StartDate(time.Time{}))
+	}
+
+	if m.Status == MangaStatusCompleted && m.FinishedAt != nil {
+		opts = append(opts, mal.FinishDate(*m.FinishedAt))
+	} else {
+		opts = append(opts, mal.FinishDate(time.Time{}))
+	}
+
+	return opts
 }
 
 func newMangaFromMediaListEntry(mediaList verniy.MediaList) (Manga, error) {
@@ -113,7 +326,7 @@ func newMangaFromMediaListEntry(mediaList verniy.MediaList) (Manga, error) {
 	}, nil
 }
 
-func newMangaFromMalUserManga(manga mal.Manga) (Manga, error) {
+func newMangaFromMalManga(manga mal.Manga) (Manga, error) {
 	if manga.ID == 0 {
 		return Manga{}, errors.New("ID is nil")
 	}
@@ -182,4 +395,64 @@ func mapAnilistMangaStatustToStatus(s verniy.MediaListStatus) MangaStatus {
 	default:
 		return MangaStatusUnknown
 	}
+}
+
+func newMangasFromMediaListGroups(groups []verniy.MediaListGroup) []Manga {
+	res := make([]Manga, 0, len(groups))
+	for _, group := range groups {
+		for _, mediaList := range group.Entries {
+			r, err := newMangaFromMediaListEntry(mediaList)
+			if err != nil {
+				log.Printf("Error creating manga from media list entry: %v", err)
+				continue
+			}
+
+			res = append(res, r)
+		}
+	}
+	return res
+}
+
+func newMangasFromMalUserMangas(mangas []mal.UserManga) []Manga {
+	res := make([]Manga, 0, len(mangas))
+	for _, manga := range mangas {
+		r, err := newMangaFromMalManga(manga.Manga)
+		if err != nil {
+			log.Printf("Error creating manga from mal user manga: %v", err)
+			continue
+		}
+
+		res = append(res, r)
+	}
+	return res
+}
+
+func newMangasFromMalMangas(mangas []mal.Manga) []Manga {
+	res := make([]Manga, 0, len(mangas))
+	for _, manga := range mangas {
+		r, err := newMangaFromMalManga(manga)
+		if err != nil {
+			log.Printf("Error creating manga from mal manga: %v", err)
+			continue
+		}
+
+		res = append(res, r)
+	}
+	return res
+}
+
+func newTargetsFromMangas(mangas []Manga) []Target {
+	res := make([]Target, 0, len(mangas))
+	for _, manga := range mangas {
+		res = append(res, manga)
+	}
+	return res
+}
+
+func newSourcesFromMangas(mangas []Manga) []Source {
+	res := make([]Source, 0, len(mangas))
+	for _, manga := range mangas {
+		res = append(res, manga)
+	}
+	return res
 }

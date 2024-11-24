@@ -206,7 +206,7 @@ func (a Anime) SameTypeWithTarget(t Target) bool {
 	return f(aa, bb)
 }
 
-func (a Anime) GetUpdateMyAnimeListStatusOption() []mal.UpdateMyAnimeListStatusOption {
+func (a Anime) GetUpdateOptions() []mal.UpdateMyAnimeListStatusOption {
 	st, err := a.Status.GetMalStatus()
 	if err != nil {
 		log.Printf("Error getting MAL status: %v", err)
