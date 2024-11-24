@@ -26,7 +26,7 @@ func NewAnilistClient(ctx context.Context, oauth *OAuth, username string) (*Anil
 }
 
 func (c *AnilistClient) GetUserAnimeList(ctx context.Context) ([]verniy.MediaListGroup, error) {
-	lists, err := c.c.GetUserAnimeListWithContext(ctx, c.username,
+	return c.c.GetUserAnimeListWithContext(ctx, c.username,
 		verniy.MediaListGroupFieldStatus,
 		verniy.MediaListGroupFieldEntries(
 			verniy.MediaListFieldID,
@@ -49,11 +49,36 @@ func (c *AnilistClient) GetUserAnimeList(ctx context.Context) ([]verniy.MediaLis
 			),
 		),
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	return lists, nil
+}
+
+func (c *AnilistClient) GetUserMangaList(ctx context.Context) ([]verniy.MediaListGroup, error) {
+	return c.c.GetUserMangaListWithContext(ctx, c.username,
+		verniy.MediaListGroupFieldName,
+		verniy.MediaListGroupFieldStatus,
+		verniy.MediaListGroupFieldEntries(
+			verniy.MediaListFieldID,
+			verniy.MediaListFieldStatus,
+			verniy.MediaListFieldScore,
+			verniy.MediaListFieldProgress,
+			verniy.MediaListFieldProgressVolumes,
+			verniy.MediaListFieldStartedAt,
+			verniy.MediaListFieldCompletedAt,
+			verniy.MediaListFieldMedia(
+				verniy.MediaFieldID,
+				verniy.MediaFieldIDMAL,
+				verniy.MediaFieldTitle(
+					verniy.MediaTitleFieldRomaji,
+					verniy.MediaTitleFieldEnglish,
+					verniy.MediaTitleFieldNative),
+				verniy.MediaFieldType,
+				verniy.MediaFieldFormat,
+				verniy.MediaFieldStatusV2,
+				verniy.MediaFieldChapters,
+				verniy.MediaFieldVolumes,
+			),
+		),
+	)
 }
 
 func NewAnilistOAuth(ctx context.Context, config Config) (*OAuth, error) {

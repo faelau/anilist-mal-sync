@@ -59,19 +59,86 @@ type Anime struct {
 	FinishedAt  *time.Time
 }
 
-func (a Anime) GetTitle() string {
-	if a.TitleEN != "" {
-		return a.TitleEN
-	}
-	if a.TitleJP != "" {
-		return a.TitleJP
-	}
-	return a.TitleRomaji
+func (a Anime) GetTargetID() TargetID {
+	return TargetID(a.IDMal)
 }
 
-func (a Anime) IsSameAnime(b Anime) bool {
-	if a.IDMal == b.IDMal {
+func (a Anime) GetStatusString() string {
+	return string(a.Status)
+}
+
+func (a Anime) GetStringDiffWithTarget(t Target) string {
+	b, ok := t.(Anime)
+	if !ok {
+		return "Diff{undefined}"
+	}
+
+	sb := strings.Builder{}
+	sb.WriteString("Diff{")
+	if a.Status != b.Status {
+		sb.WriteString(fmt.Sprintf("Status: %s -> %s, ", a.Status, b.Status))
+	}
+	if a.Score != b.Score {
+		sb.WriteString(fmt.Sprintf("Score: %f -> %f, ", a.Score, b.Score))
+	}
+	if a.Progress != b.Progress {
+		sb.WriteString(fmt.Sprintf("Progress: %d -> %d, ", a.Progress, b.Progress))
+	}
+	if a.NumEpisodes != b.NumEpisodes {
+		sb.WriteString(fmt.Sprintf("NumEpisodes: %d -> %d, ", a.NumEpisodes, b.NumEpisodes))
+	}
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (a Anime) SameProgressWithTarget(t Target) bool {
+	b, ok := t.(Anime)
+	if !ok {
+		return false
+	}
+
+	if a.Status != b.Status {
+		DPrintf("Status: %s != %s", a.Status, b.Status)
+		return false
+	}
+	if a.Score != b.Score {
+		DPrintf("Score: %f != %f", a.Score, b.Score)
+		return false
+	}
+	progress := a.Progress == b.Progress
+	if a.NumEpisodes == b.NumEpisodes {
+		DPrintf("Equal number of episodes: %d == %d", a.NumEpisodes, b.NumEpisodes)
+		DPrintf("Progress: %t", progress)
+		return progress
+	}
+	if a.NumEpisodes == 0 || b.NumEpisodes == 0 {
+		DPrintf("One of the anime has 0 episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
+		DPrintf("Progress: %t", progress)
+		return progress
+	}
+	if progress && (a.NumEpisodes-b.NumEpisodes != 0) {
+		DPrintf("Both anime have 0 progress but different number of episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
 		return true
+	}
+
+	aa := (a.NumEpisodes - a.Progress)
+	bb := (b.NumEpisodes - b.Progress)
+
+	DPrintf("Number of episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
+	DPrintf("Progress: %d, %d", a.Progress, b.Progress)
+	DPrintf("Progress: %d == %d", aa, bb)
+
+	return aa == bb
+}
+
+func (a Anime) SameTypeWithTarget(t Target) bool {
+	if a.GetTargetID() == t.GetTargetID() {
+		return true
+	}
+
+	b, ok := t.(Anime)
+	if !ok {
+		return false
 	}
 
 	eq := func(s1, s2 string) bool {
@@ -129,90 +196,42 @@ func (a Anime) IsSameAnime(b Anime) bool {
 	return f(aa, bb)
 }
 
-func (a Anime) IsSameProgress(b Anime) bool {
-	if a.Status != b.Status {
-		if debug {
-			log.Printf("Status: %s != %s", a.Status, b.Status)
-		}
-		return false
-	}
-	if a.Score != b.Score {
-		if debug {
-			log.Printf("Score: %f != %f", a.Score, b.Score)
-		}
-		return false
-	}
-	progress := a.Progress == b.Progress
-	if a.NumEpisodes == b.NumEpisodes {
-		if debug {
-			log.Printf("Equal number of episodes: %d == %d", a.NumEpisodes, b.NumEpisodes)
-			log.Printf("Progress: %t", progress)
-		}
-		return progress
-	}
-	if a.NumEpisodes == 0 || b.NumEpisodes == 0 {
-		if debug {
-			log.Printf("One of the anime has 0 episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
-			log.Printf("Progress: %t", progress)
-		}
-		return progress
-	}
-	if progress && (a.NumEpisodes-b.NumEpisodes != 0) {
-		if debug {
-			log.Printf("Both anime have 0 progress but different number of episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
-		}
-		return true
+func (a Anime) GetUpdateOptions() []mal.UpdateMyAnimeListStatusOption {
+	st, err := a.Status.GetMalStatus()
+	if err != nil {
+		log.Printf("Error getting MAL status: %v", err)
+		return nil
 	}
 
-	aa := (a.NumEpisodes - a.Progress)
-	bb := (b.NumEpisodes - b.Progress)
-	if debug {
-		log.Printf("Number of episodes: %d, %d", a.NumEpisodes, b.NumEpisodes)
-		log.Printf("Progress: %d, %d", a.Progress, b.Progress)
-		log.Printf("Progress: %d == %d", aa, bb)
+	opts := []mal.UpdateMyAnimeListStatusOption{
+		st,
+		mal.Score(a.Score),
+		mal.NumEpisodesWatched(a.Progress),
 	}
-	return aa == bb
+
+	if a.StartedAt != nil {
+		opts = append(opts, mal.StartDate(*a.StartedAt))
+	} else {
+		opts = append(opts, mal.StartDate(time.Time{}))
+	}
+
+	if a.Status == StatusCompleted && a.FinishedAt != nil {
+		opts = append(opts, mal.FinishDate(*a.FinishedAt))
+	} else {
+		opts = append(opts, mal.FinishDate(time.Time{}))
+	}
+
+	return opts
 }
 
-func (a Anime) IsSameDates(b Anime) bool {
-	if a.StartedAt == nil && b.StartedAt == nil {
-		return true
+func (a Anime) GetTitle() string {
+	if a.TitleEN != "" {
+		return a.TitleEN
 	}
-	if a.StartedAt == nil || b.StartedAt == nil {
-		return false
+	if a.TitleJP != "" {
+		return a.TitleJP
 	}
-	if a.FinishedAt == nil && b.FinishedAt == nil {
-		return true
-	}
-	if a.FinishedAt == nil || b.FinishedAt == nil {
-		return false
-	}
-	return a.StartedAt.Equal(*b.StartedAt) && a.FinishedAt.Equal(*b.FinishedAt)
-}
-
-func (a Anime) DiffString(b Anime) string {
-	sb := strings.Builder{}
-	sb.WriteString("Diff{")
-	if a.Status != b.Status {
-		sb.WriteString(fmt.Sprintf("Status: %s -> %s, ", a.Status, b.Status))
-	}
-	if a.Score != b.Score {
-		sb.WriteString(fmt.Sprintf("Score: %f -> %f, ", a.Score, b.Score))
-	}
-	if a.Progress != b.Progress {
-		sb.WriteString(fmt.Sprintf("Progress: %d -> %d, ", a.Progress, b.Progress))
-	}
-	if a.NumEpisodes != b.NumEpisodes {
-		sb.WriteString(fmt.Sprintf("NumEpisodes: %d -> %d, ", a.NumEpisodes, b.NumEpisodes))
-	}
-	// if a.StartedAt != b.StartedAt {
-	// 	sb.WriteString(fmt.Sprintf("StartedAt: %s -> %s, ", a.StartedAt, b.StartedAt))
-	// }
-	// if a.FinishedAt != b.FinishedAt {
-	// 	sb.WriteString(fmt.Sprintf("FinishedAt: %s -> %s, ", a.FinishedAt, b.FinishedAt))
-	// }
-	sb.WriteString("}")
-	return sb.String()
+	return a.TitleRomaji
 }
 
 func (a Anime) String() string {
@@ -233,7 +252,23 @@ func (a Anime) String() string {
 	return sb.String()
 }
 
-func newAmimeFromMediaListEntry(mediaList verniy.MediaList) (Anime, error) {
+func newAnimesFromMediaListGroups(groups []verniy.MediaListGroup) []Anime {
+	res := make([]Anime, 0, len(groups))
+	for _, group := range groups {
+		for _, mediaList := range group.Entries {
+			a, err := newAnimeFromMediaListEntry(mediaList)
+			if err != nil {
+				log.Printf("Error creating anime from media list entry: %v", err)
+				continue
+			}
+
+			res = append(res, a)
+		}
+	}
+	return res
+}
+
+func newAnimeFromMediaListEntry(mediaList verniy.MediaList) (Anime, error) {
 	if mediaList.Media == nil {
 		return Anime{}, errors.New("media is nil")
 	}
@@ -305,6 +340,32 @@ func newAmimeFromMediaListEntry(mediaList verniy.MediaList) (Anime, error) {
 	}, nil
 }
 
+func newAnimesFromMalAnimes(malAnimes []mal.Anime) []Anime {
+	res := make([]Anime, 0, len(malAnimes))
+	for _, malAnime := range malAnimes {
+		a, err := newAnimeFromMalAnime(malAnime)
+		if err != nil {
+			log.Printf("failed to convert mal anime to anime: %v", err)
+			continue
+		}
+		res = append(res, a)
+	}
+	return res
+}
+
+func newAnimesFromMalUserAnimes(malAnimes []mal.UserAnime) []Anime {
+	res := make([]Anime, 0, len(malAnimes))
+	for _, malAnime := range malAnimes {
+		a, err := newAnimeFromMalAnime(malAnime.Anime)
+		if err != nil {
+			log.Printf("failed to convert mal anime to anime: %v", err)
+			continue
+		}
+		res = append(res, a)
+	}
+	return res
+}
+
 func newAnimeFromMalAnime(malAnime mal.Anime) (Anime, error) {
 	if malAnime.ID == 0 {
 		return Anime{}, errors.New("ID is nil")
@@ -350,6 +411,8 @@ func mapVerniyStatusToStatus(s verniy.MediaListStatus) Status {
 		return StatusDropped
 	case verniy.MediaListStatusPlanning:
 		return StatusPlanToWatch
+	case verniy.MediaListStatusRepeating:
+		return StatusWatching // TODO: handle repeating correctly
 	default:
 		return StatusUnknown
 	}
@@ -396,4 +459,20 @@ func parseDateOrNow(dateStr string) *time.Time {
 	}
 	parsedTime = parsedTime.UTC().Truncate(24 * time.Hour)
 	return &parsedTime
+}
+
+func newTargetsFromAnimes(animes []Anime) []Target {
+	res := make([]Target, 0, len(animes))
+	for _, anime := range animes {
+		res = append(res, anime)
+	}
+	return res
+}
+
+func newSourcesFromAnimes(animes []Anime) []Source {
+	res := make([]Source, 0, len(animes))
+	for _, anime := range animes {
+		res = append(res, anime)
+	}
+	return res
 }

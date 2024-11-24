@@ -74,6 +74,9 @@ Program supports the following command-line options:
 - `-f` - Force sync (sync all entries, not just the ones that have changed). Default is false.
 - `-d` - Dry run (do not make any changes to MyAnimeList). Default is false.
 - `-h` - Print help message.
+- `manga` - Sync manga instead of anime. Default is anime.
+- `all` - Sync both anime and manga. Default is anime.
+- `verbose` - Print debug messages. Default is false.
 
 ### How to run
 
@@ -103,7 +106,6 @@ Just stop it and wait for a while and run again.
 
 ## TODO
 
-- [x] Add documentation
-- [x] ~Sync favorites~ (not possible, because it is not available in the API)
-- [ ] Sync manga
+- [ ] Sync favorites
 - [ ] Sync MAL to AniList
+- [ ] Sync rewatching and rereading

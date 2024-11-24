@@ -20,6 +20,14 @@ var animeFields = mal.Fields{
 	"start_season",
 }
 
+var mangaFields = mal.Fields{
+	"alternative_titles",
+	"num_volumes",
+	"num_chapters",
+	"my_list_status",
+	"start_date",
+}
+
 type MyAnimeListClient struct {
 	c *mal.Client
 
@@ -77,43 +85,69 @@ func (c *MyAnimeListClient) GetAnimeByID(ctx context.Context, id int) (*mal.Anim
 	return anime, nil
 }
 
-func (c *MyAnimeListClient) UpdateAnime(ctx context.Context, anime Anime) error {
-	if anime.IDMal <= 0 {
-		return errEmptyMalID
+func (c *MyAnimeListClient) UpdateAnimeByIDAndOptions(ctx context.Context, id int, opts []mal.UpdateMyAnimeListStatusOption) error {
+	if len(opts) == 0 {
+		return nil
 	}
 
-	st, err := anime.Status.GetMalStatus()
+	_, _, err := c.c.Anime.UpdateMyListStatus(ctx, id, opts...)
 	if err != nil {
 		return err
 	}
+	return nil
+}
 
-	opts := []mal.UpdateMyAnimeListStatusOption{
-		st,
-		mal.Score(anime.Score),
-		mal.NumEpisodesWatched(anime.Progress),
+func (c *MyAnimeListClient) GetUserMangaList(ctx context.Context) ([]mal.UserManga, error) {
+	var userMangaList []mal.UserManga
+	var offset int
+	for {
+		list, resp, err := c.c.User.MangaList(ctx, c.username, mangaFields, mal.Offset(offset), mal.Limit(100))
+		if err != nil {
+			return nil, err
+		}
+
+		userMangaList = append(userMangaList, list...)
+
+		if resp.NextOffset == 0 {
+			break
+		}
+
+		offset = resp.NextOffset
+	}
+	return userMangaList, nil
+}
+
+func (c *MyAnimeListClient) GetMangasByName(ctx context.Context, name string) ([]mal.Manga, error) {
+	l, _, err := c.c.Manga.List(ctx, name, mangaFields, mal.Limit(10))
+	if err != nil {
+		return nil, err
 	}
 
-	if anime.StartedAt != nil {
-		opts = append(opts, mal.StartDate(*anime.StartedAt))
-	} else {
-		opts = append(opts, mal.StartDate(time.Time{}))
+	return l, nil
+}
+
+func (c *MyAnimeListClient) GetMangaByID(ctx context.Context, id int) (*mal.Manga, error) {
+	if id <= 0 {
+		return nil, errEmptyMalID
 	}
 
-	if anime.Status == StatusCompleted && anime.FinishedAt != nil {
-		opts = append(opts, mal.FinishDate(*anime.FinishedAt))
-	} else {
-		opts = append(opts, mal.FinishDate(time.Time{}))
+	m, _, err := c.c.Manga.Details(ctx, id, mangaFields)
+	if err != nil {
+		return nil, err
 	}
 
-	_, _, err = c.c.Anime.UpdateMyListStatus(
-		ctx,
-		anime.IDMal,
-		opts...,
-	)
+	return m, nil
+}
+
+func (c *MyAnimeListClient) UpdateMangaByIDAndOptions(ctx context.Context, id int, opts []mal.UpdateMyMangaListStatusOption) error {
+	if len(opts) == 0 {
+		return nil
+	}
+
+	_, _, err := c.c.Manga.UpdateMyListStatus(ctx, id, opts...)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
