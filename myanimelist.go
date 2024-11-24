@@ -117,6 +117,38 @@ func (c *MyAnimeListClient) UpdateAnime(ctx context.Context, anime Anime) error 
 	return nil
 }
 
+func (c *MyAnimeListClient) UpdateByIDAndOptions(ctx context.Context, id int, opts []mal.UpdateMyAnimeListStatusOption) error {
+	if len(opts) == 0 {
+		return nil
+	}
+
+	_, _, err := c.c.Anime.UpdateMyListStatus(ctx, id, opts...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *MyAnimeListClient) GetUserMangaList(ctx context.Context) ([]mal.UserManga, error) {
+	var userMangaList []mal.UserManga
+	var offset int
+	for {
+		list, resp, err := c.c.User.MangaList(ctx, c.username, mal.Offset(offset), mal.Limit(100))
+		if err != nil {
+			return nil, err
+		}
+
+		userMangaList = append(userMangaList, list...)
+
+		if resp.NextOffset == 0 {
+			break
+		}
+
+		offset = resp.NextOffset
+	}
+	return userMangaList, nil
+}
+
 func NewMyAnimeListOAuth(ctx context.Context, config Config) (*OAuth, error) {
 	code := url.QueryEscape(randHttpParamString(43))
 
